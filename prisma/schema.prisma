@@ -102,6 +102,8 @@ model Assignment {
   carPlate           String
   type               String?
   transportationType String?
+  pickupAddress      String?
+  dropOffAddress     String?
   images             String[]
   status             Status   @default(ASSIGNED)
 

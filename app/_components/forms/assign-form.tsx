@@ -36,6 +36,7 @@ import { z } from "zod";
 import { assignmentSchema } from "@/schema/assignment-schema";
 import { createAssignment } from "@/actions/assignment-action";
 import toast from "react-hot-toast";
+import { Status } from "@prisma/client";
 
 export const AssignForm = () => {
   const [drivers, setDrivers] = useState<DriverData[]>([]);
@@ -57,10 +58,12 @@ export const AssignForm = () => {
       carPlate: "",
       pickupDate: new Date(),
       driverId: "",
+      status: Status.ASSIGNED,
     },
   });
 
-  const { isSubmitting } = form.formState;
+  const { isSubmitting, errors } = form.formState;
+  console.log(errors);
 
   const onSubmit = async (values: z.infer<typeof assignmentSchema>) => {
     try {

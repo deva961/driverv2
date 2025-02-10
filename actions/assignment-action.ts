@@ -24,6 +24,7 @@ export const getAssignments = async () => {
       status: 200,
     };
   } catch (error) {
+    console.log(error);
     return {
       data: [],
       message: "Failed to fetch assignment!",
@@ -74,6 +75,7 @@ export const getAssignmentsForDriver = async (
       status: 200,
     };
   } catch (error) {
+    console.log(error);
     return {
       data: [],
       message: "Failed to fetch assignment!",
@@ -96,7 +98,7 @@ export const createAssignment = async (
     };
   }
 
-  const { driverId, carPlate, pickupDate } = validatedFields.data;
+  const { driverId, carPlate, pickupDate, status } = validatedFields.data;
 
   try {
     // Check if a driver already has an active assignment
@@ -117,6 +119,7 @@ export const createAssignment = async (
         driverId,
         carPlate,
         pickupDate,
+        status,
       },
     });
 
@@ -160,6 +163,7 @@ export const updateAssignment = async (
         status: values.status,
         type: values.type,
         images: values.images,
+        pickupAddress: values.pickupAddress,
       },
     });
 

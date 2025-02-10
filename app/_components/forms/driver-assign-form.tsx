@@ -1,9 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
+import { updateAssignment } from "@/actions/assignment-action";
 import { Spinner } from "@/components/spinner";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,10 +20,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { assignmentSchema } from "@/schema/assignment-schema";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Status } from "@prisma/client";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
-import { updateAssignment } from "@/actions/assignment-action";
+import { z } from "zod";
+
+interface LocationProps {
+  latitude: number;
+  longitude: number;
+}
 
 // Define schema for validation
 export const DriverAssignForm = ({
@@ -42,14 +46,6 @@ export const DriverAssignForm = ({
   status: Status;
   pickupDate: Date;
 }) => {
-  const [frontImg, setFrontImg] = useState<string | null>(null);
-  const [sideImg, setSideImg] = useState<string | null>(null);
-  const [backImg, setBackImg] = useState<string | null>(null);
-  const [odometerImg, setOdometerImg] = useState<string | null>(null);
-
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-
   const form = useForm<z.infer<typeof assignmentSchema>>({
     resolver: zodResolver(assignmentSchema),
     defaultValues: {
@@ -57,6 +53,8 @@ export const DriverAssignForm = ({
       driverId: driverId,
       status: status,
       pickupDate: pickupDate,
+      pickupAddress: "",
+      dropOffAddress: "",
       transportType: "",
       images: [""],
       finalImage: "",
@@ -64,58 +62,61 @@ export const DriverAssignForm = ({
     },
   });
 
-  // Watch `type` field value from the form
   const formType = form.watch("type");
 
   const { isSubmitting } = form.formState;
-  const router = useRouter();
 
-  // Start the camera (on component mount)
+  const [location, setLocation] = useState<LocationProps | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Geolocation logic
   useEffect(() => {
-    startCamera();
+    if (typeof window !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(async (position) => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+        setLocation({ latitude: lat, longitude: lon });
+      });
+    } else {
+      setError("Geolocation is not supported by this browser.");
+    }
   }, []);
 
-  // Start the camera to display video feed
-  const startCamera = () => {
-    if (videoRef.current && canvasRef.current) {
-      navigator.mediaDevices
-        .getUserMedia({ video: true })
-        .then((stream) => {
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
+  useEffect(() => {
+    if (location) {
+      try {
+        const fetchAddress = async () => {
+          const apiKey = process.env.NEXT_PUBLIC_OPENCAGE_API_KEY;
+
+          // Check if the API key is available
+          if (!apiKey) {
+            setError("OpenCage API key is missing");
+            return;
           }
-        })
-        .catch((err) => {
-          console.error("Error accessing camera: ", err);
-        });
-    }
-  };
 
-  // Capture the image from the camera feed
-  const captureImage = (imageType: "front" | "side" | "back" | "odometer") => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
+          const response = await fetch(
+            `https://api.opencagedata.com/geocode/v1/json?q=${location.latitude},${location.longitude}&key=${apiKey}`
+          );
 
-    if (video && canvas) {
-      const context = canvas.getContext("2d");
-      if (context) {
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+          if (!response.ok) {
+            setError("Failed to fetch location data");
+            return;
+          }
 
-        const imageUrl = canvas.toDataURL("image/png"); // Get the image as a base64 string
-
-        if (imageType === "front") setFrontImg(imageUrl);
-        if (imageType === "side") setSideImg(imageUrl);
-        if (imageType === "back") setBackImg(imageUrl);
-        if (imageType === "odometer") setOdometerImg(imageUrl);
-
-        // Push the captured image to the form's images array
-        form.setValue("images", [
-          ...(form.getValues("images") ?? []),
-          imageUrl,
-        ]);
+          const data = await response.json();
+          const address = data.results[0]?.formatted || "Address not found";
+          form.setValue("pickupAddress", address);
+        };
+        fetchAddress();
+      } catch (error) {
+        console.log(error);
       }
     }
-  };
+  }, [location, form]);
+
+  if (error) {
+    toast.error(error);
+  }
 
   // Handle form submission
   async function onSubmit(values: z.infer<typeof assignmentSchema>) {
@@ -123,6 +124,7 @@ export const DriverAssignForm = ({
       const res = await updateAssignment(id, driverId, {
         ...values,
         status: Status.PENDING,
+        pickupAddress: values.pickupAddress,
       });
 
       if (res.status === 200) {
@@ -201,42 +203,6 @@ export const DriverAssignForm = ({
               </FormItem>
             )}
           />
-        )}
-
-        {/* Camera Preview and Capture */}
-        <div>
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            width="100%"
-            height="auto"
-            style={{ display: frontImg ? "none" : "block" }}
-          />
-        </div>
-
-        <canvas ref={canvasRef} style={{ display: "none" }} />
-
-        {/* Image Capturing Buttons */}
-        <Button type="button" onClick={() => captureImage("front")}>
-          Capture Front Image
-        </Button>
-        <Button type="button" onClick={() => captureImage("side")}>
-          Capture Side Image
-        </Button>
-        <Button type="button" onClick={() => captureImage("back")}>
-          Capture Back Image
-        </Button>
-        <Button type="button" onClick={() => captureImage("odometer")}>
-          Capture Odometer Image
-        </Button>
-
-        {/* Display the Captured Images */}
-        {frontImg && <img src={frontImg} alt="Front Image" width={200} />}
-        {sideImg && <img src={sideImg} alt="Side Image" width={200} />}
-        {backImg && <img src={backImg} alt="Back Image" width={200} />}
-        {odometerImg && (
-          <img src={odometerImg} alt="Odometer Image" width={200} />
         )}
 
         {/* Submit Button */}
