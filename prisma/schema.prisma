@@ -23,6 +23,7 @@ enum Role {
 enum Status {
   ASSIGNED
   PENDING
+  PICKED
   COMPLETED
 }
 

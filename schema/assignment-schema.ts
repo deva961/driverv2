@@ -11,7 +11,12 @@ export const assignmentSchema = z.object({
   pickupAddress: z.string().optional(),
   dropOffAddress: z.string().optional(),
   pickupDate: z.date(),
-  status: z.enum([Status.ASSIGNED, Status.PENDING, Status.COMPLETED]),
+  status: z.enum([
+    Status.ASSIGNED,
+    Status.PENDING,
+    Status.PICKED,
+    Status.COMPLETED,
+  ]),
   transportType: z.string().optional(),
   images: z.array(z.string()).optional(),
   type: z.string().optional(),

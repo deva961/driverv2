@@ -1,252 +1,158 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-
 import { Spinner } from "@/components/spinner";
 import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+import { Form } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useRouter } from "next/navigation";
-import { useState, useRef } from "react";
-import toast from "react-hot-toast";
+import { assignmentSchema } from "@/schema/assignment-schema";
+import { zodResolver } from "@hookform/resolvers/zod";
+import imageCompression from "browser-image-compression";
 import Image from "next/image";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import toast from "react-hot-toast";
+import { z } from "zod";
 
-// Define schema for validation
-const driverAssignSchema = z.object({
-  transportType: z.string(),
-  images: z.array(z.string()).optional(),
-  type: z.string(),
-  finalImage: z.string().optional(),
-});
-
-export const DriverAssignForm = ({ carPlate }: { carPlate: string }) => {
-  // const [taskType, setTaskType] = useState<"PICKUP" | "DROPOFF" | undefined>(
-  //   undefined
-  // );
-
-  const [frontImg, setFrontImg] = useState<string | null>(null);
-
-  // Create a ref for the video element and canvas element
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-
-  const form = useForm<z.infer<typeof driverAssignSchema>>({
-    resolver: zodResolver(driverAssignSchema),
+export const DriverAssignFormStep2 = ({ carPlate }: { carPlate: string }) => {
+  const [images, setImages] = useState<string[]>([]);
+  const form = useForm<z.infer<typeof assignmentSchema>>({
+    resolver: zodResolver(assignmentSchema),
     defaultValues: {
-      transportType: "",
-      images: [""],
-      finalImage: "",
-      type: "",
+      images: [],
+      status: "PICKED",
     },
   });
 
-  // Watch `type` field value from the form
-  const formType = form.watch("type");
-
   const { isSubmitting } = form.formState;
-  const router = useRouter();
+
+  const compressImage = async (file: File): Promise<File> => {
+    const options = {
+      maxSizeMB: 0.5,
+      maxWidthOrHeight: 1920,
+      useWebWorker: true,
+    };
+
+    try {
+      const compressedFile = await imageCompression(file, options);
+      return compressedFile;
+    } catch (error) {
+      console.log("Error while compressing the image", error);
+      throw error;
+    }
+  };
+
+  // Handle file input change
+  const handleFileChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    index: number
+  ) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const compressedImage = await compressImage(file);
+        const imageUrl = URL.createObjectURL(compressedImage);
+
+        // Update the images state
+        const newImages = [...images];
+        newImages[index] = imageUrl;
+        setImages(newImages);
+
+        // Update the form value
+        form.setValue("images", newImages);
+      } catch (error) {
+        console.log("Error while handling image change", error);
+      }
+    }
+  };
 
   // Handle form submission
-  async function onSubmit(data: z.infer<typeof driverAssignSchema>) {
+  async function onSubmit(values: z.infer<typeof assignmentSchema>) {
     try {
-      console.log(data); // This will log the form data
+      console.log(values);
+      // const res = await updateAssignment(values);
       toast.success("Assignment saved successfully!");
-      router.push("/");
     } catch (error) {
       console.log(error);
       toast.error("Something went wrong!");
     }
   }
 
-  // Start the camera feed with the back camera
-  const startCamera = async () => {
-    try {
-      // Enumerate all video devices to get the back camera
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const backCamera = devices.find(
-        (device) =>
-          device.kind === "videoinput" && device.label.includes("back")
-      );
-
-      // If back camera is found, use it
-      if (backCamera) {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: backCamera.deviceId }, // Use the back camera
-        });
-
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-      } else {
-        toast.error("Back camera not found.");
-      }
-    } catch (error) {
-      console.log(error);
-      toast.error("Could not access camera.");
-    }
-  };
-
-  // Capture an image from the camera feed
-  const captureImage = () => {
-    if (videoRef.current && canvasRef.current) {
-      const context = canvasRef.current.getContext("2d");
-
-      if (context) {
-        canvasRef.current.width = videoRef.current.videoWidth;
-        canvasRef.current.height = videoRef.current.videoHeight;
-        context.drawImage(
-          videoRef.current,
-          0,
-          0,
-          canvasRef.current.width,
-          canvasRef.current.height
-        );
-
-        // Convert the canvas image to a data URL and set it to frontImg state
-        const imageUrl = canvasRef.current.toDataURL();
-        setFrontImg(imageUrl);
-
-        // Optionally, you can stop the camera stream here
-        const stream = videoRef.current.srcObject as MediaStream;
-        const tracks = stream.getTracks();
-        tracks.forEach((track) => track.stop()); // Stop the video stream
-      }
-    }
-  };
-
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         {/* Car Plate Input */}
-        <Input placeholder={carPlate} disabled />
 
-        {/* Task Type Dropdown */}
-        <FormField
-          control={form.control}
-          name="type"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Task Type</FormLabel>
-              <FormControl>
-                <Select
-                  value={field.value}
-                  onValueChange={field.onChange}
-                  disabled={isSubmitting}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="PICKUP">Pick up</SelectItem>
-                    <SelectItem value="DROPOFF">Drop off</SelectItem>
-                  </SelectContent>
-                </Select>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {formType === "PICKUP" && (
-          <FormField
-            control={form.control}
-            name="transportType"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Transportation Type</FormLabel>
-                <FormControl>
-                  <Select
-                    value={field.value}
-                    onValueChange={field.onChange}
-                    disabled={isSubmitting}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select Transportation" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="auto">Auto</SelectItem>
-                      <SelectItem value="bike">Bike</SelectItem>
-                      <SelectItem value="bus">Bus</SelectItem>
-                      <SelectItem value="car">Car</SelectItem>
-                      <SelectItem value="metro">Metro</SelectItem>
-                      <SelectItem value="train">Train</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
-
-        {/* Button to open the camera and capture the image */}
-        <Button type="button" onClick={startCamera}>
-          Open Camera
-        </Button>
-        <Button type="button" onClick={captureImage}>
-          Capture Front Image
-        </Button>
-
-        {/* Video Feed (Camera Preview) */}
         <div>
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            width="100%"
-            height="auto"
-            style={{ display: frontImg ? "none" : "block" }}
-          />
+          <label
+            htmlFor="cover-photo"
+            className="block text-sm/6 font-medium text-gray-900"
+          >
+            Car Number
+          </label>
+          <Input placeholder={carPlate} disabled />
         </div>
-
-        {/* Canvas to draw the captured image */}
-        <canvas ref={canvasRef} style={{ display: "none" }} />
-
-        {/* Display the captured front image */}
-        {frontImg && (
-          <Image
-            src={frontImg}
-            alt="Captured Front Image"
-            height={200}
-            width={200}
-          />
-        )}
-
-        {/* Images Input Field */}
-        <FormField
-          control={form.control}
-          name="images"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Images</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="Enter image URL or file"
-                  {...field}
-                  disabled={isSubmitting}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="col-span-1">
+          <label
+            htmlFor="cover-photo"
+            className="block text-sm/6 font-medium text-gray-900"
+          >
+            Cover photo (కార్ ఫోటోను అప్‌లోడ్ చేయండి)
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
+            {["front", "left", "back", "right", "odometer"].map(
+              (view, index) => (
+                <div
+                  key={view}
+                  className="mt-2 flex justify-center rounded-lg border border-dashed border-gray-900/25 px-6 py-10"
+                >
+                  <div className="text-center">
+                    <Image
+                      loading="lazy"
+                      src={`/${view}_view.webp`}
+                      height={120}
+                      width={120}
+                      className="mx-auto"
+                      alt={`${view} view`}
+                    />
+                    <div className="mt-4 text-sm/6 text-gray-600">
+                      <label
+                        htmlFor={`file-upload-${index}`}
+                        className="relative cursor-pointer rounded-md bg-white font-semibold text-indigo-600 focus-within:ring-2 focus-within:ring-indigo-600 focus-within:ring-offset-2 focus-within:outline-hidden hover:text-indigo-500"
+                      >
+                        <span>
+                          Upload {view.charAt(0).toUpperCase() + view.slice(1)}{" "}
+                          photo
+                        </span>
+                        <input
+                          id={`file-upload-${index}`}
+                          name={`file-upload-${index}`}
+                          type="file"
+                          className="sr-only"
+                          accept="image/*"
+                          onChange={(e) => handleFileChange(e, index)}
+                        />
+                      </label>
+                      <p className="pl-1">{`${
+                        view.charAt(0).toUpperCase() + view.slice(1)
+                      } ఫోటోను అప్‌లోడ్ చేయండి`}</p>
+                    </div>
+                    {/* Image Preview */}
+                    {images[index] && (
+                      <div className="relative h-40 w-full ">
+                        <Image
+                          fill
+                          src={images[index]}
+                          className="mx-auto object-contain"
+                          alt={`${view} preview`}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            )}
+          </div>
+        </div>
 
         {/* Submit Button */}
         <Button type="submit" disabled={isSubmitting}>

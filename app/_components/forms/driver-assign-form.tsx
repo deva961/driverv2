@@ -26,13 +26,13 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
 import { z } from "zod";
+import { DriverAssignFormStep2 } from "./driver-assign-step-2";
 
 interface LocationProps {
   latitude: number;
   longitude: number;
 }
 
-// Define schema for validation
 export const DriverAssignForm = ({
   carPlate,
   status,
@@ -212,8 +212,6 @@ export const DriverAssignForm = ({
       </form>
     </Form>
   ) : (
-    <div>
-      <p>Driver is not assigned yet. Please assign the task first.</p>
-    </div>
+    <DriverAssignFormStep2 carPlate={carPlate} />
   );
 };
