@@ -34,12 +34,12 @@ export const driverAssignmentSchema = z.object({
     Status.COMPLETED,
   ]),
   transportType: z.string().optional(),
-  images: z.array(z.string()).length(5, "You must provide exactly 5 images."),
+  images: z.array(z.string()).optional(),
   type: z.string().optional(),
   finalImage: z.string().optional(),
 });
 
-export const DriverAssignFormStep2 = ({
+export const DriverAssignFormStep3 = ({
   carPlate,
   id,
   driverId,
@@ -50,16 +50,16 @@ export const DriverAssignFormStep2 = ({
   driverId: string;
   pickupDate: Date;
 }) => {
-  const [images, setImages] = useState<string[]>([]);
+  const [image, setImage] = useState<string | null>(null); // Track only one image
   const form = useForm<z.infer<typeof driverAssignmentSchema>>({
     resolver: zodResolver(driverAssignmentSchema),
     defaultValues: {
       carPlate,
       pickupDate,
       driverId,
-      pickupAddress: "",
-      images: [],
-      status: Status.PICKED,
+      dropOffAddress: "",
+      finalImage: "",
+      status: Status.COMPLETED,
     },
   });
 
@@ -67,7 +67,7 @@ export const DriverAssignFormStep2 = ({
 
   useEffect(() => {
     if (address) {
-      form.setValue("pickupAddress", address);
+      form.setValue("dropOffAddress", address);
     }
   }, [address, form]);
 
@@ -89,24 +89,15 @@ export const DriverAssignFormStep2 = ({
     }
   };
 
-  // Handle file input change
-  const handleFileChange = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-    index: number
-  ) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       try {
         const compressedImage = await compressImage(file);
         const imageUrl = URL.createObjectURL(compressedImage);
 
-        // Update the images state
-        const newImages = [...images];
-        newImages[index] = imageUrl;
-        setImages(newImages);
-
-        // Update the form value
-        form.setValue("images", newImages);
+        setImage(imageUrl);
+        form.setValue("finalImage", imageUrl);
       } catch (error) {
         console.log("Error while handling image change", error);
       }
@@ -114,7 +105,6 @@ export const DriverAssignFormStep2 = ({
   };
 
   const { errors } = form.formState;
-
   console.log(errors);
 
   // Handle form submission
@@ -145,6 +135,8 @@ export const DriverAssignFormStep2 = ({
           </label>
           <Input placeholder={carPlate} disabled />
         </div>
+
+        {/* Cover photo */}
         <div className="col-span-1">
           <label
             htmlFor="cover-photo"
@@ -152,60 +144,49 @@ export const DriverAssignFormStep2 = ({
           >
             Cover photo (కార్ ఫోటోను అప్‌లోడ్ చేయండి)
           </label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
-            {["front", "left", "back", "right", "odometer"].map(
-              (view, index) => (
-                <div
-                  key={view}
-                  className="mt-2 flex justify-center rounded-lg border border-dashed border-gray-900/25 px-6 py-10"
-                >
-                  <div className="text-center">
-                    <Image
-                      loading="lazy"
-                      src={`/${view}_view.webp`}
-                      height={120}
-                      width={120}
-                      className="mx-auto"
-                      alt={`${view} view`}
+          <div className="grid grid-cols-1 gap-5">
+            <div className="mt-2 flex justify-center rounded-lg border border-dashed border-gray-900/25 px-6 py-10">
+              <div className="text-center">
+                <Image
+                  loading="lazy"
+                  src="/front_view.webp"
+                  height={120}
+                  width={120}
+                  className="mx-auto"
+                  alt="Front view"
+                />
+                <div className="mt-4 text-sm/6 text-gray-600">
+                  <label
+                    htmlFor="file-upload"
+                    className="relative cursor-pointer rounded-md bg-white font-semibold text-indigo-600 focus-within:ring-2 focus-within:ring-indigo-600 focus-within:ring-offset-2 focus-within:outline-hidden hover:text-indigo-500"
+                  >
+                    <span>Upload front photo</span>
+                    <input
+                      id="file-upload"
+                      name="file-upload"
+                      type="file"
+                      className="sr-only"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handleFileChange}
                     />
-                    <div className="mt-4 text-sm/6 text-gray-600">
-                      <label
-                        htmlFor={`file-upload-${index}`}
-                        className="relative cursor-pointer rounded-md bg-white font-semibold text-indigo-600 focus-within:ring-2 focus-within:ring-indigo-600 focus-within:ring-offset-2 focus-within:outline-hidden hover:text-indigo-500"
-                      >
-                        <span>
-                          Upload {view.charAt(0).toUpperCase() + view.slice(1)}{" "}
-                          photo
-                        </span>
-                        <input
-                          id={`file-upload-${index}`}
-                          name={`file-upload-${index}`}
-                          type="file"
-                          className="sr-only"
-                          accept="image/*"
-                          capture="environment"
-                          onChange={(e) => handleFileChange(e, index)}
-                        />
-                      </label>
-                      <p className="pl-1">{`${
-                        view.charAt(0).toUpperCase() + view.slice(1)
-                      } ఫోటోను అప్‌లోడ్ చేయండి`}</p>
-                    </div>
-                    {/* Image Preview */}
-                    {images[index] && (
-                      <div className="relative h-40 w-full ">
-                        <Image
-                          fill
-                          src={images[index]}
-                          className="mx-auto object-contain"
-                          alt={`${view} preview`}
-                        />
-                      </div>
-                    )}
-                  </div>
+                  </label>
+                  <p className="pl-1">ఫోటోను అప్‌లోడ్ చేయండి</p>
                 </div>
-              )
-            )}
+
+                {/* Image Preview */}
+                {image && (
+                  <div className="relative h-40 w-full">
+                    <Image
+                      fill
+                      src={image}
+                      className="mx-auto object-contain"
+                      alt="Final image preview"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 

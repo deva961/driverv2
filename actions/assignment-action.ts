@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { assignmentSchema } from "@/schema/assignment-schema";
 import { Role, Status } from "@prisma/client";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 export const getAssignments = async () => {
@@ -160,12 +161,17 @@ export const updateAssignment = async (
       where: { id, driverId },
       data: {
         transportationType: values.transportType,
-        status: values.status,
         type: values.type,
         images: values.images,
+        startAdress: values.startAddress,
         pickupAddress: values.pickupAddress,
+        dropOffAddress: values.dropOffAddress,
+        status: values.status,
+        finalImage: values.finalImage,
       },
     });
+
+    revalidatePath(`/records/driver/${id}`);
 
     return {
       status: 200,

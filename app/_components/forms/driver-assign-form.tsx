@@ -19,23 +19,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useGeolocation } from "@/hooks/use-geo-location";
 import { assignmentSchema } from "@/schema/assignment-schema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Status } from "@prisma/client";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
 import { z } from "zod";
-import { DriverAssignFormStep2 } from "./driver-assign-step-2";
-
-interface LocationProps {
-  latitude: number;
-  longitude: number;
-}
 
 export const DriverAssignForm = ({
   carPlate,
-  status,
   id,
   driverId,
   pickupDate,
@@ -43,7 +37,6 @@ export const DriverAssignForm = ({
   id: string;
   driverId: string;
   carPlate: string;
-  status: Status;
   pickupDate: Date;
 }) => {
   const form = useForm<z.infer<typeof assignmentSchema>>({
@@ -51,80 +44,33 @@ export const DriverAssignForm = ({
     defaultValues: {
       carPlate: carPlate,
       driverId: driverId,
-      status: status,
       pickupDate: pickupDate,
-      pickupAddress: "",
-      dropOffAddress: "",
+      status: "ASSIGNED",
+      startAddress: "",
       transportType: "",
       images: [""],
-      finalImage: "",
       type: "",
     },
   });
 
+  const { address } = useGeolocation();
+
   const formType = form.watch("type");
-
-  const { isSubmitting } = form.formState;
-
-  const [location, setLocation] = useState<LocationProps | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  // Geolocation logic
   useEffect(() => {
-    if (typeof window !== "undefined" && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(async (position) => {
-        const lat = position.coords.latitude;
-        const lon = position.coords.longitude;
-        setLocation({ latitude: lat, longitude: lon });
-      });
-    } else {
-      setError("Geolocation is not supported by this browser.");
+    if (address) {
+      form.setValue("startAddress", address);
     }
-  }, []);
+  }, [address, form]);
 
-  useEffect(() => {
-    if (location) {
-      try {
-        const fetchAddress = async () => {
-          const apiKey = process.env.NEXT_PUBLIC_OPENCAGE_API_KEY;
-
-          // Check if the API key is available
-          if (!apiKey) {
-            setError("OpenCage API key is missing");
-            return;
-          }
-
-          const response = await fetch(
-            `https://api.opencagedata.com/geocode/v1/json?q=${location.latitude},${location.longitude}&key=${apiKey}`
-          );
-
-          if (!response.ok) {
-            setError("Failed to fetch location data");
-            return;
-          }
-
-          const data = await response.json();
-          const address = data.results[0]?.formatted || "Address not found";
-          form.setValue("pickupAddress", address);
-        };
-        fetchAddress();
-      } catch (error) {
-        console.log(error);
-      }
-    }
-  }, [location, form]);
-
-  if (error) {
-    toast.error(error);
-  }
-
+  const { isSubmitting, errors } = form.formState;
+  console.log(errors);
   // Handle form submission
   async function onSubmit(values: z.infer<typeof assignmentSchema>) {
     try {
       const res = await updateAssignment(id, driverId, {
         ...values,
         status: Status.PENDING,
-        pickupAddress: values.pickupAddress,
+        startAddress: values.startAddress,
       });
 
       if (res.status === 200) {
@@ -138,7 +84,7 @@ export const DriverAssignForm = ({
     }
   }
 
-  return status === Status.ASSIGNED ? (
+  return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         {/* Car Plate Input */}
@@ -211,7 +157,5 @@ export const DriverAssignForm = ({
         </Button>
       </form>
     </Form>
-  ) : (
-    <DriverAssignFormStep2 carPlate={carPlate} />
   );
 };

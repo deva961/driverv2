@@ -103,9 +103,11 @@ model Assignment {
   carPlate           String
   type               String?
   transportationType String?
+  startAdress        String?
   pickupAddress      String?
   dropOffAddress     String?
   images             String[]
+  finalImage         String?
   status             Status   @default(ASSIGNED)
 
   driver    Driver   @relation(fields: [driverId], references: [id])

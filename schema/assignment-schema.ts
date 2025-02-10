@@ -8,6 +8,7 @@ export const assignmentSchema = z.object({
   driverId: z.string().min(2, {
     message: "Please choose driver",
   }),
+  startAddress: z.string().optional(),
   pickupAddress: z.string().optional(),
   dropOffAddress: z.string().optional(),
   pickupDate: z.date(),
